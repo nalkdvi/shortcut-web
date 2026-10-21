@@ -6,6 +6,13 @@ const { registerDeletion, hashPassword } = require('./deletion');
 
 const app = express();
 const port = Number(process.env.PORT || 3000);
+// 通常は0（転送ヘッダーを信頼しない）。公開先の実際のプロキシ数だけ指定する。
+const proxyHops = Number(process.env.TRUST_PROXY_HOPS ?? 0);
+if (!Number.isInteger(proxyHops) || proxyHops < 0 || proxyHops > 10
+    || process.env.TRUST_PROXY_HOPS?.trim() === '') {
+  throw new Error('TRUST_PROXY_HOPSは0〜10の整数で指定してください。');
+}
+app.set('trust proxy', proxyHops);
 const categories = ['便利ツール', '勉強', '仕事効率化', 'エンタメ', 'その他'];
 const databasePath = path.resolve(
   __dirname,
@@ -92,7 +99,6 @@ const cleanupTimer = setInterval(() => {
   }
 }, postWindowMs);
 cleanupTimer.unref();
-// trust proxyは既定で無効。公開時は信頼するプロキシだけを指定する。
 
 function isValidShortcutUrl(value) {
   // 余分なパス、クエリ、偽のホスト名なども拒否する。
