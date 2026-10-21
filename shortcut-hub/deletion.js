@@ -24,10 +24,11 @@ function registerDeletion(app, db) {
   // 投稿APIとは別に、削除の試行を同じIPから10分間に5回までにする。
   function limitDeletions(req, res, next) {
     const now = Date.now();
-    let record = attempts.get(req.ip);
+    const ip = req.clientIp || req.ip;
+    let record = attempts.get(ip);
     if (!record || now >= record.resetAt) {
       record = { count: 0, resetAt: now + windowMs };
-      attempts.set(req.ip, record);
+      attempts.set(ip, record);
     }
     if (record.count >= 5) {
       res.setHeader('Retry-After', Math.ceil((record.resetAt - now) / 1000));

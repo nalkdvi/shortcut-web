@@ -2,6 +2,7 @@ const express = require('express');
 const Database = require('better-sqlite3');
 const fs = require('node:fs');
 const path = require('node:path');
+const { isIP } = require('node:net');
 const { registerDeletion, hashPassword } = require('./deletion');
 
 const app = express();
@@ -13,6 +14,7 @@ if (!Number.isInteger(proxyHops) || proxyHops < 0 || proxyHops > 10
   throw new Error('TRUST_PROXY_HOPSは0〜10の整数で指定してください。');
 }
 app.set('trust proxy', proxyHops);
+const useRailwayProxy = process.env.TRUST_RAILWAY_PROXY === 'true';
 const categories = ['便利ツール', '勉強', '仕事効率化', 'エンタメ', 'その他'];
 const databasePath = path.resolve(
   __dirname,
@@ -55,6 +57,12 @@ const insertShortcut = db.prepare(`
 const findShortcut = db.prepare(`SELECT ${publicColumns} FROM shortcuts WHERE id = ?`);
 
 app.disable('x-powered-by');
+// Railwayの公開HTTP経由と設定した場合だけ、上書き済みのIPヘッダーを使う。
+app.use((req, res, next) => {
+  const realIp = req.get('x-real-ip') || '';
+  req.clientIp = useRailwayProxy && isIP(realIp) ? realIp : req.ip;
+  next();
+});
 app.use((req, res, next) => {
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('Referrer-Policy', 'no-referrer');
@@ -78,7 +86,7 @@ const maxPostAttempts = 5;
 // 同じIPからの投稿試行を10分間に5回までにする。
 function limitPosts(req, res, next) {
   const now = Date.now();
-  const ip = req.ip;
+  const ip = req.clientIp;
   let record = postAttempts.get(ip);
   if (!record || now >= record.resetAt) {
     record = { count: 0, resetAt: now + postWindowMs };
